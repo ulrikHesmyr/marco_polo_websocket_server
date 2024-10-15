@@ -1,32 +1,111 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-//Initialize a socket server
+app.use(express.static("./static"));
 
+const activeRooms = {}; // Store active rooms with sockets
 
-//Listen for connection
+// Helper function to generate a 4-digit room ID
+function generateRoomID() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
+// Listen for new client connections
+io.on('connection', (socket) => {
+    console.log('New client connected:', socket.id);
 
+    // Listen for 'initialize-peer-connection'
+    socket.on('initialize-peer-connection', () => {
 
-//Listen for "initialize-peer-connection" 
-    //Generate a 4-digit code
-    //Create a room for this 4 digit code
-    //Add socket to the current room 
-    //Emit a message with the 4-digit room-ID
+        const currentRooms = Array.from(socket.rooms);
+        console.log(currentRooms);
+        if(currentRooms.length > 1){
+            leaveRoom(socket, currentRooms[1]);
+        }
 
-//Listen for "join-peer-connection"
-    //Take 4-digit room-ID  and check if there is a room
-    //Check how many sockets is within this room
-    //If less than 2, let the socket join that room
-    //Emit to the room that the connection is established
-    //Call new function called peerConnection(roomID) and pass in the room-ID
+        const roomID = generateRoomID();
+        socket.join(roomID);
+        console.log(Array.from(socket.rooms));
+        //TODO: Add while loop to generate a new roomID if there is an already existing room with this roomID
+        //For now we assume that there there will be no crashes due to low probability
 
+        activeRooms[roomID] = [socket]; // Add socket to the room
+        console.log(`Room created: ${roomID} by ${socket.id}`);
 
-//Enable socket event listener to listen for "geolocation"
+        // Emit room ID to the client so that he can send this roomID to his friend via SMS/tell him on the phone and such
+        socket.emit('room-created', roomID);
+    });
 
-//function peerConnection(roomID)
-//Add socket event listener for both the sockets in the room to listen for "sent-geolocation"
-    //Emit an event called "got-geolocation" with the data for this event to the other peer in the room
+    // Listen for 'join-peer-connection'
+    socket.on('join-peer-connection', (roomID) => {
+        const room = io.sockets.adapter.rooms.get(roomID);
+        
+        if (room && room.size < 2) {
+            socket.join(roomID);
+            activeRooms[roomID].push(socket); // Add second socket to room
 
-//Add socket event listener for both sockets on "disconnect"
-    //Emit to the other peer in the room that the other peer has disconnected with an event called "peer-disconnected"
-    //Delete/remove the room with the current roomID
+            console.log(`Socket ${socket.id} joined room ${roomID}`);
+
+            // Emit connection established event to both peers
+            io.to(roomID).emit('peers-connected', roomID);
+
+            // Initiate peer connection logic
+            peerConnection(roomID);
+        } else {
+            socket.emit('error', 'Room is full or does not exist.');
+        }
+    });
+
+    socket.on('leave-room', ()=>{
+        if(Array.from(socket.rooms).length > 1){
+            leaveRoom(socket, Array.from(socket.rooms)[1]);
+        }
+    })
+
+    // Listen for 'disconnect' event
+    socket.on('disconnect', () => {
+        console.log('Client disconnected:', socket.id);
+
+        // Find the room the socket was in and notify the other peer
+        for (const roomID in activeRooms) {
+            const sockets = activeRooms[roomID];
+            if (sockets.includes(socket)) {
+                leaveRoom(socket, roomID);
+                break;
+            }
+        }
+    });
+});
+
+function leaveRoom(socket, roomID){
+    activeRooms[roomID].splice(activeRooms[roomID].indexOf(socket), 1);
+    socket.to(roomID).emit('peer-disconnected');
+    socket.leave(roomID);
+
+    if (activeRooms[roomID].length === 0) {
+        delete activeRooms[roomID]; // Remove room if empty
+        console.log(`Room ${roomID} deleted`);
+    }
+}
+
+// Function to handle peer communication
+function peerConnection(roomID) {
+    
+    for(let socket of activeRooms[roomID]){
+        socket.on('sent-geolocation', (data) => {
+            // Emit 'got-geolocation' event to the other peer
+            socket.to(roomID).emit('got-geolocation', data);
+        });
+    }
+}
+
+// Start the server
+const PORT = 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
