@@ -21,8 +21,6 @@ const io = new Server(server, {
     }
 });
 
-app.use(express.static("./static"));
-
 const activeRooms = {}; // Store active rooms with sockets
 
 // Helper function to generate a 4-digit room ID
