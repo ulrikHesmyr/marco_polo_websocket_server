@@ -3,9 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>WebSocket Geolocation Peer Connection</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script defer src="script.js"></script>
 </head>
 <body>
-    <h1>Hello world!</h1>
+    <h1>Geolocation Peer Connection</h1>
+
+    <button id="initializeBtn">Initialize Peer Connection</button>
+    <input type="text" id="roomID">
+    <button id="joinBtn">Join Peer Connection</button>
+    <button id="leaveBtn">Leave room</button>
+
+    <p id="status"></p>
+    <p id="peer-geolocation"></p>
+
 </body>
 </html>
