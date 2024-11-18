@@ -17,6 +17,7 @@ app.use(
   })
 );
 
+//Host mock-client to use for logic testing together with app emulator
 app.use(express.static(path.join(__dirname, "static")));
 
 const io = new Server(server, {
